@@ -7,12 +7,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
-
+import os
 plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['axes.unicode_minus'] = False
 
-DATA_DIR = 'data/'
-OUT_DIR = 'reports/'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 脚本所在目录
+DATA_DIR = os.path.join(BASE_DIR, 'data', '')
+OUT_DIR = os.path.join(BASE_DIR, 'reports', '')
 
 
 def merge_dedup():

@@ -1,8 +1,11 @@
 import pandas as pd
 import glob
+import os
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', '')
 
 # 读取文件夹里所有 B站数据文件
-files = glob.glob('E:/project/bilibili_analysis/b站热门视频*.csv')
+files = glob.glob(DATA_DIR + 'b站热门视频*.csv')
 files.sort()  # 按文件名排序（日期从旧到新）
 
 print('找到的文件:')
@@ -31,5 +34,5 @@ print('保留的数据日期分布:')
 print(unique['数据日期'].value_counts().to_string())
 
 # 保存汇总
-unique.to_csv('E:/project/bilibili_analysis/b站热门数据_汇总.csv', index=False, encoding='utf-8-sig')
+unique.to_csv(DATA_DIR + 'b站热门数据_汇总.csv', index=False, encoding='utf-8-sig')
 print('\n已保存: b站热门数据_汇总.csv')
