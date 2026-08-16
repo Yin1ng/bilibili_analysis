@@ -25,6 +25,16 @@ print('\n合并前总数:', len(merged))
 
 # 先按日期排序，确保最新日期排在最后
 merged = merged.sort_values('数据日期')
+# 清洗
+print('空值数量:')
+print(merged.isnull().sum().to_string())
+print('播放量为 0:', (merged['播放量'] == 0).sum())
+print('时长小于 10 秒:', (merged['时长秒'] < 10).sum())
+
+# 观察异常值：超过 2 小时(7200秒)的视频
+long_videos = merged[merged['时长秒'] > 7200]
+print('时长超过 2 小时的视频数:', len(long_videos))
+print(long_videos[['标题', 'UP主', '分区', '时长秒']].head(10).to_string())
 
 # 按 BV 号去重，保留最后一个（最新日期的数据）
 unique = merged.drop_duplicates(subset='BV号', keep='last').reset_index(drop=True)
