@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B站热门视频流量规律分析报告</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --ink: #1f2329;
+    --sub: #6b7280;
+    --line: #e5e7eb;
+    --accent: #fb7299;
+    --accent2: #00a1d6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.8;
+  }
+  .hero {
+    background: linear-gradient(135deg, #fb7299 0%, #d9a7c7 100%);
+    color: #fff;
+    padding: 60px 24px;
+    text-align: center;
+  }
+  .hero h1 { font-size: 30px; font-weight: 700; margin-bottom: 12px; }
+  .hero p { opacity: 0.92; font-size: 15px; }
+  .hero .tag { display: inline-block; background: rgba(255,255,255,0.22); border-radius: 20px; padding: 3px 14px; margin: 0 4px; font-size: 13px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 28px 20px 80px; }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 26px 30px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  h2 {
+    font-size: 22px;
+    margin-bottom: 6px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+  }
+  .sub { color: var(--sub); font-size: 14px; margin-bottom: 18px; }
+  h3 { font-size: 16px; color: var(--accent2); margin: 18px 0 8px; }
+  p { margin-bottom: 10px; font-size: 15px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 16px 0; }
+  .kpi { background: #fafbfc; border: 1px solid var(--line); border-radius: 8px; padding: 14px; text-align: center; }
+  .kpi .num { font-size: 24px; font-weight: 700; color: var(--accent); }
+  .kpi .lbl { font-size: 13px; color: var(--sub); }
+  .chart { position: relative; height: 380px; margin: 16px 0; }
+  .chart.tall { height: 460px; }
+  .chart.short { height: 300px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: center; }
+  th { background: #fafbfc; font-weight: 600; }
+  tr.hl td { background: #fff5f8; }
+  .note {
+    background: #fef9ef;
+    border-left: 4px solid #f59e0b;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+    color: #7c4a00;
+    margin: 14px 0;
+  }
+  .insight {
+    background: #f0f9ff;
+    border-left: 4px solid var(--accent2);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+    color: #0c4a6e;
+    margin: 14px 0;
+  }
+  .concl {
+    background: #f5f0ff;
+    border-left: 4px solid #8b5cf6;
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    font-size: 15px;
+    margin: 14px 0;
+  }
+  ul { padding-left: 22px; margin-bottom: 10px; }
+  li { font-size: 15px; margin-bottom: 6px; }
+  .footer { text-align: center; color: var(--sub); font-size: 13px; padding: 30px 0 10px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 800px) { .two { grid-template-columns: 1fr; } }
+  .heat-cell { width: 40px; height: 40px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+  .heat { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; overflow-x: auto; }
+  .heat-row { display: flex; gap: 4px; align-items: center; }
+  .heat-lbl { width: 90px; font-size: 13px; text-align: right; padding-right: 8px; color: var(--sub); flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>B站热门视频流量规律分析报告</h1>
+  <p>三周跨期采集（7/26 · 8/2 · 8/10）· 1,926 条唯一热门视频 · 独立完成</p>
+  <p style="margin-top:10px;">
+    <span class="tag">数据采集</span>
+    <span class="tag">数据清洗</span>
+    <span class="tag">多维拆解</span>
+    <span class="tag">相关性分析</span>
+    <span class="tag">逻辑回归</span>
+  </p>
+</div>
+
+<div class="container">
+
+<!-- 一、项目背景 -->
+<div class="card">
+  <h2>一、项目背景与分析目标</h2>
+  <div class="sub">什么样的内容更容易火？创作者与平台都在靠感觉猜。</div>
+  <p>B站作为国内最大的中长视频平台，每天产生海量内容。但"什么样的内容更容易火"，创作者和运营主要靠经验判断、缺少数据依据——创作者不知道该往哪个方向投稿，平台也不清楚流量集中在谁手里。</p>
+  <p>本项目通过 B站官方热门榜接口采集数据。热门榜代表"平台认为值得火的内容"，与"什么样的内容容易火"的分析目标直接匹配。</p>
+  <h3>四个分析目标</h3>
+  <ul>
+    <li>描述数据集内视频播放量的整体分布与结构特征</li>
+    <li>从分区、UP主、发布时间、时长四大维度拆解播放量差异</li>
+    <li>量化互动指标与播放量的关联，识别高价值互动信号</li>
+    <li>提炼爆款视频共性特征，输出可落地的内容运营建议</li>
+  </ul>
+</div>
+
+<!-- 二、数据说明 -->
+<div class="card">
+  <h2>二、数据说明与预处理</h2>
+  <div class="sub">原始 → 清洗 → 去重 → 特征工程，全程可复现</div>
+
+  <h3>2.1 数据规模</h3>
+  <p>三周数据合并前 1,928 条，按 BV号 去重后得到 <b>1,926 条唯一热门视频</b>。三周榜单仅重叠 2 条，说明 <b>B站热门内容更新迭代极快</b>，单日数据无法代表长期趋势，这也是采用跨周采集的原因。</p>
+
+  <h3>2.2 数据字段（14 个）</h3>
+  <table>
+    <tr><th>类别</th><th>字段</th></tr>
+    <tr><td>内容属性</td><td>标题、分区、UP主、BV号、时长秒、发布时间</td></tr>
+    <tr><td>流量指标</td><td>播放量</td></tr>
+    <tr><td>互动指标</td><td>点赞数、评论数、弹幕数、收藏数、投币数、分享数</td></tr>
+    <tr><td>采集信息</td><td>数据日期</td></tr>
+  </table>
+
+  <h3>2.3 数据清洗</h3>
+  <ul>
+    <li><b>无效值剔除</b>：播放量≤0、时长≤0、时间为空——三周数据全部为 0，天生干净</li>
+    <li><b>异常值处理</b>：剔除时长 &gt; 10 小时的极端视频 4 条（直播回放类），保留 1,922 条</li>
+    <li><b>去重</b>：按 BV号 去重并保留最新采集日期的快照</li>
+    <li><b>发布时间校验</b>：发布天数≤0 的 623 条中，109 条为采集异常（置 1 标记），其余为当天发布、当天上热门的正常样本，予以保留</li>
+  </ul>
+
+  <h3>2.4 特征工程</h3>
+  <p>为消除播放量量级差异、衡量用户真实互动意愿，构造以下衍生字段：</p>
+  <table>
+    <tr><th>指标</th><th>公式</th><th>业务意义</th></tr>
+    <tr><td>点赞率 / 投币率 / 收藏率 / 评论率 / 弹幕率 / 分享率</td><td>互动数 ÷ 播放量</td><td>消除量级影响，衡量互动意愿</td></tr>
+    <tr><td>三连率</td><td>(点赞+投币+收藏) ÷ 播放量</td><td>内容核心认可度</td></tr>
+    <tr><td>币赞比</td><td>投币数 ÷ 点赞数</td><td>投币门槛高于点赞，反映硬核认可</td></tr>
+    <tr><td>弹幕密度</td><td>弹幕数 ÷ 时长秒</td><td>单位时长的观众参与度</td></tr>
+  </table>
+
+  <h3>2.5 样本分层（按播放量分位数）</h3>
+  <div class="chart short"><canvas id="cLevels"></canvas></div>
+  <div class="note"><b>爆款极度稀缺</b>：头部爆款（≥90 分位，298万）仅占 9%，超级爆款（≥99 分位，697万）仅占 1%，尾部低播放占 30%。</div>
+</div>
+
+<!-- 三、整体分布 -->
+<div class="card">
+  <h2>三、播放量整体分布特征</h2>
+  <div class="sub">均值 118 万 vs 中位数 64.8 万——数据明显右偏</div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="num">118.5万</div><div class="lbl">均值</div></div>
+    <div class="kpi"><div class="num">64.8万</div><div class="lbl">中位数</div></div>
+    <div class="kpi"><div class="num">1.83</div><div class="lbl">均值÷中位数</div></div>
+    <div class="kpi"><div class="num">1.7万~1214万</div><div class="lbl">播放范围</div></div>
+    <div class="kpi"><div class="num">~700倍</div><div class="lbl">最大÷最小</div></div>
+  </div>
+
+  <div class="two">
+    <div>
+      <h3>原始播放量分布</h3>
+      <div class="chart short"><canvas id="cPlay"></canvas></div>
+    </div>
+    <div>
+      <h3>取对数后的分布</h3>
+      <div class="chart short"><canvas id="cPlayLog"></canvas></div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <b>幂律分布验证</b>：原始播放量挤在左侧长尾，取对数后接近钟形——少数头部视频拿走绝大部分播放，播放量呈典型的"长尾 / 幂律"结构。均值被头部拉高，<b>中位数才是代表大众水平的指标</b>（后续对比统一用中位数）。
+  </div>
+</div>
+
+<!-- 四、多维拆解 -->
+<div class="card">
+  <h2>四、多维度播放量差异分析</h2>
+  <div class="sub">分区 / UP主 / 发布时间 / 时长 四个维度</div>
+
+  <h3>4.1 分区维度：流量与互动意愿负相关</h3>
+  <p>从<b>流量（播放中位数）</b>与<b>互动意愿（三连率）</b>两个视角看分区强弱。</p>
+  <div class="chart tall"><canvas id="cScatter"></canvas></div>
+
+  <div class="two">
+    <div>
+      <h3>分区播放量中位数 Top15</h3>
+      <div class="chart tall"><canvas id="cPartTop"></canvas></div>
+    </div>
+    <div>
+      <h3>最容易出爆款的分区</h3>
+      <div class="chart tall"><canvas id="cHitPart"></canvas></div>
+    </div>
+  </div>
+
+  <p><b>爆款率</b> = 该分区内头部爆款 ÷ 该分区视频数，比"爆款绝对数"更能反映"在这个分区投稿更容易火"。特摄爆款率 35.3% 居首，小剧场 20.5%、搞笑 19.1% 紧随。</p>
+  <div class="insight">
+    <b>两种"火"的模式</b>：大众分区（搞笑、小剧场）播放基数大但三连率低——观众以"路人"为主，属<b>流量型</b>；小众创作区（VOCALOID 三连率 0.42、MAD·AMV、绘画）播放不大但互动意愿极强——观众是"核心粉"，属<b>粉丝型</b>。流量越高的分区，三连率反而越低（"粉丝浓度稀释"）。
+  </div>
+
+  <h3>4.2 UP主维度：头部高度集中</h3>
+  <div class="chart"><canvas id="cUpCum"></canvas></div>
+  <div class="kpis">
+    <div class="kpi"><div class="num">12%</div><div class="lbl">UP主贡献 50% 播放（174人）</div></div>
+    <div class="kpi"><div class="num">34%</div><div class="lbl">UP主贡献 80% 播放（495人）</div></div>
+    <div class="kpi"><div class="num">51%</div><div class="lbl">UP主贡献 90% 播放（729人）</div></div>
+    <div class="kpi"><div class="num">12.5倍</div><div class="lbl">头部均播 vs 尾部均播</div></div>
+  </div>
+  <p>按平均播放分位将出现≥2次的 282 个 UP主划分为头部（57人，均播 298万）、腰部（168人，均播 97万）、尾部（57人，均播 24万）。</p>
+  <div class="insight">
+    <b>小 UP 出爆款样本为 0</b>：全部 1,436 个 UP主中，平均播放处于后 30% 的 431 个小 UP 无一产出爆款（≥298万）。热门榜流量完全由中头部主导，二八效应显著——这是"头部集中"最强力的证明。
+  </div>
+
+  <h3>4.3 发布时间维度（受快照限制，仅描述分布）</h3>
+  <div class="chart"><canvas id="cWeek"></canvas></div>
+  <div class="note">
+    <b>快照偏差说明</b>：数据为热门榜近 7 天快照（采集日均为周日），周六发布视频最多（678条）但中位数最低（36万）——因为刚发布即被采集、播放尚未累积。周一周二视频虽少但多为已发布数日的沉淀视频。<b>本维度仅反映样本内分布，不构成"黄金投稿日"结论</b>。
+  </div>
+
+  <h3>4.4 时长维度：短视频更优</h3>
+  <div class="chart"><canvas id="cTime"></canvas></div>
+  <div class="insight">
+    <b>0-1 分钟短视频两项第一</b>：播放中位数 129万（最高）+ 三连率 0.126（最高）——短、轻、互动意愿强。15 分钟+ 长视频三连率（0.099）高于 5-15 分钟（0.093），说明"看完全程的是真爱粉"。
+  </div>
+</div>
+
+<!-- 五、相关性 -->
+<div class="card">
+  <h2>五、互动指标与播放量关联分析（核心段）</h2>
+  <div class="sub">绝对互动数与播放强相关，互动率与播放全部负相关</div>
+
+  <h3>5.1 绝对互动数相关性（Spearman 热力图）</h3>
+  <p>绝对互动数（点赞、收藏等）与播放量<b>强正相关</b>——点赞×播放 0.83、收藏×播放 0.66。这是"大视频互动自然多"的规模效应。</p>
+  <div id="heatmap" style="display:flex; justify-content:center;"></div>
+
+  <h3>5.2 互动率相关性（关键反转）</h3>
+  <table>
+    <tr><th>指标</th><th>与播放量的 Spearman 相关</th></tr>
+    <tr><td>点赞率</td><td>-0.396</td></tr>
+    <tr><td>评论率</td><td>-0.520</td></tr>
+    <tr><td>弹幕率</td><td>-0.460</td></tr>
+    <tr><td>投币率</td><td>-0.516</td></tr>
+    <tr><td>三连率</td><td>-0.460</td></tr>
+    <tr class="hl"><td>弹幕密度</td><td><b>+0.561（唯一强正相关）</b></td></tr>
+  </table>
+
+  <div class="concl">
+    <b>核心发现：流量 ≠ 质量。</b>绝对互动数看的是"总量"，互动率看的是"意愿"。播放量越高的视频，观众互动意愿反而越低（全部互动率与播放负相关）——高播放靠"覆盖广度"，不靠"互动深度"。<b>唯一的例外是弹幕密度（+0.561）</b>，它是与播放量正相关的独立质量维度。
+  </div>
+
+  <h3>5.3 高播放 ≠ 高互动率（分层验证）</h3>
+  <table>
+    <tr><th>播放层级</th><th>三连率</th><th>投币率</th><th>弹幕密度</th></tr>
+    <tr><td>超级爆款</td><td>0.065</td><td>0.0073</td><td>40.34</td></tr>
+    <tr><td>头部爆款</td><td>0.068</td><td>0.0053</td><td>41.80</td></tr>
+    <tr><td>腰部普通</td><td>0.092</td><td>0.0094</td><td>12.84</td></tr>
+    <tr class="hl"><td>尾部低播放</td><td><b>0.156（最高）</b></td><td>0.0248</td><td>4.06</td></tr>
+  </table>
+  <p>尾部低播放视频三连率（0.156）是爆款（0.068）的 2.3 倍——低播放不意味着质量差，反而是"小而美"的高认可内容。但弹幕密度爆款（41.65）是普通（9.91）的 <b>4.2 倍</b>，弹幕成为区分爆款的唯一显著信号。</p>
+</div>
+
+<!-- 六、爆款画像 -->
+<div class="card">
+  <h2>六、爆款视频特征总结（画像）</h2>
+  <div class="sub">爆款组（193条）vs 普通组（1,729条）</div>
+
+  <div class="two">
+    <div>
+      <h3>时长分布对比</h3>
+      <div class="chart"><canvas id="cTimeCmp"></canvas></div>
+    </div>
+    <div>
+      <h3>弹幕密度对比</h3>
+      <div class="chart"><canvas id="cDan"></canvas></div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>维度</th><th>爆款特征</th></tr>
+    <tr><td>分区</td><td>特摄（35.3%）、小剧场（20.5%）、搞笑（19.1%）、影视剪辑（18.6%）最容易出爆款</td></tr>
+    <tr><td>时长</td><td>爆款中位 189 秒 vs 普通 296 秒；0-1 分钟爆款占比 19.2% 是普通的两倍</td></tr>
+    <tr><td>弹幕</td><td>弹幕密度 41.65 vs 9.91（4.2 倍）——唯一显著领先的指标</td></tr>
+    <tr><td>互动率</td><td>所有互动率爆款反而更低（覆盖广度优先，不靠深度）</td></tr>
+  </table>
+</div>
+
+<!-- 七、进阶建模 -->
+<div class="card">
+  <h2>七、进阶：逻辑回归爆款预测</h2>
+  <div class="sub">从"描述"升级为"定量影响权重"</div>
+  <p>以"是否爆款"为因变量（爆款=1），以互动率、弹幕密度、高爆款分区、发布时间等为特征训练逻辑回归（标准缩放 + 类别平衡）。测试集整体准确率 0.83；受爆款仅占 10% 的样本不平衡影响，爆款类别 precision 为 0.34——<b>模型适合做方向参考，不宜做精确判断</b>。</p>
+  <div class="chart"><canvas id="cModel"></canvas></div>
+  <div class="insight">
+    <b>权重解读</b>：弹幕密度（+1.71）与投币率（+1.41）是成为爆款最强的正向驱动；各互动率普遍负权重（评论率 -2.87、点赞率 -1.54）。与前文相关分析、爆款对比<b>三度交叉验证</b>：爆款的信号是"弹幕活跃 + 硬核投币"，而不是表面互动率。
+  </div>
+</div>
+
+<!-- 八、业务建议 -->
+<div class="card">
+  <h2>八、业务建议</h2>
+  <div class="sub">选题方向 · 内容优化 · 运营启示</div>
+
+  <h3>8.1 给创作者：选题方向</h3>
+  <ul>
+    <li>优先进入<b>特摄、小剧场、搞笑、影视剪辑</b>等爆款率高的分区</li>
+    <li>内容偏短：<b>1-5 分钟为主战场</b>（占爆款 43.5%），0-1 分钟可冲击爆款</li>
+  </ul>
+
+  <h3>8.2 给创作者：内容优化</h3>
+  <ul>
+    <li><b>弹幕是爆款第一信号</b>：设计互动剧情、话题引导，制造弹幕活跃</li>
+    <li><b>投币是最硬核认可</b>：干货、高制作、强情绪的内容更能让人投币</li>
+    <li>互动率（点赞率等）与爆款负相关——别被"数据好看"误导，覆盖率才是关键</li>
+  </ul>
+
+  <h3>8.3 给平台运营</h3>
+  <ul>
+    <li><b>头部集中预警</b>：前 12% UP主拿走 50% 播放，需扶持腰部，避免生态失衡</li>
+    <li><b>小众分区价值</b>：VOCALOID、绘画、MAD 等分区播放不高但粘性极强，适合深度粉丝运营与会员转化</li>
+    <li><b>弹幕作为独立质量指标</b>：监测内容互动质量，而非播放量的附属指标</li>
+  </ul>
+</div>
+
+<!-- 九、局限 -->
+<div class="card">
+  <h2>九、局限性与方法论说明</h2>
+  <ul>
+    <li><b>样本范围</b>：数据来自热门榜（平台推荐结果），结论限定为"进入热门的视频"的规律，不推广到全站</li>
+    <li><b>样本时效</b>：近 7 天快照导致星期/时段分析存在明显选择偏差，无因果意义，仅作分布描述</li>
+    <li><b>字段缺失</b>：缺少粉丝量、完播率、推荐量等核心字段，无法完全解释播放量差异</li>
+    <li><b>因果提醒</b>：点赞、投币等互动是播放的<b>结果</b>而非原因，所有结论描述相关性、不做因果推断</li>
+    <li><b>方法说明</b>：相关性使用 Spearman（适配偏态数据）；跨视频对比统一使用中位数与日均口径（本数据发布天数均≤7 天，未使用日均播放量）</li>
+  </ul>
+</div>
+
+<div class="footer">
+  项目全程独立完成 · 数据采集 → 清洗 → 分析 → 建模 → 报告 · 2026-08-15
+</div>
+
+</div>
+
+<script>
+const COLORS = { pink: '#fb7299', blue: '#00a1d6', gray: '#9ca3af', orange: '#f59e0b', teal: '#0d9488', purple: '#8b5cf6' };
+
+// ===== 2.5 层级占比 =====
+new Chart(document.getElementById('cLevels'), {
+  type: 'doughnut',
+  data: { labels: ['尾部低播放', '腰部普通', '头部爆款', '超级爆款'],
+    datasets: [{ data: [30.02, 59.94, 9.0, 1.04],
+      backgroundColor: ['#9ca3af', '#d1d5db', COLORS.pink, '#7c2d12'] }] },
+  options: { plugins: { legend: { position: 'right' } }, cutout: '55%' }
+});
+
+// ===== 3. 播放量分布 =====
+new Chart(document.getElementById('cPlay'), {
+  type: 'bar',
+  data: { labels: [0.42, 0.83, 1.23, 1.63, 2.04, 2.44, 2.85, 3.25, 3.65, 4.06, 4.46, 4.87, 5.27, 5.68, 6.08, 6.48, 6.89, 7.29, 7.70, 8.10, 8.50, 8.91, 9.31, 9.72, 10.12, 10.52, 10.93, 11.33, 11.74, 12.14],
+    datasets: [{ data: [683,408,230,160,112,77,49,39,45,22,21,15,13,8,8,8,4,3,4,3,2,3,2,1,1,0,0,0,0,1], backgroundColor: COLORS.blue }] },
+  options: { plugins: { legend: { display: false }, tooltip: { callbacks: { title: (c)=>'播放量约 '+c[0].label+' 百万' } } },
+    scales: { x: { title: { display: true, text: '播放量（百万）' } }, y: { title: { display: true, text: '视频数' } } } }
+});
+
+new Chart(document.getElementById('cPlayLog'), {
+  type: 'bar',
+  data: { labels: [4.3,4.4,4.5,4.6,4.7,4.8,4.9,5.0,5.1,5.2,5.3,5.4,5.5,5.6,5.7,5.8,5.9,6.0,6.1,6.2,6.3,6.4,6.5,6.6,6.7,6.8,6.9,7.0,7.1],
+    datasets: [{ data: [1,4,3,9,11,17,23,29,49,78,76,98,106,114,115,146,133,121,130,118,120,112,74,77,63,39,29,15,10], backgroundColor: COLORS.orange }] },
+  options: { plugins: { legend: { display: false } },
+    scales: { x: { title: { display: true, text: 'log10(播放量)' } }, y: { title: { display: true, text: '视频数' } } } }
+});
+
+// ===== 4.1 散点 =====
+const scatter = { parts: ["VOCALOID·UTAU","MAD·AMV","同人·手书","演奏","配音","翻唱","绘画","鬼畜调教","娱乐粉丝创作","音乐综合","乐评盘点","手工","美食制作","动漫杂谈","影视剪辑","野生动物","MV","小剧场","日常","搞笑","特摄","音乐现场","亲子","动物二创","电子竞技","单机游戏","美食侦探","运动综合","三农","社科·法律·心理","科学科普","数码","汽车生活","喵星人","美食测评","健身","出行","国产动画","家居房产","汪星人","桌游棋牌","社会","明星综合","美妆护肤","网络游戏","财经商业","计算机技术","短片","影视杂谈","篮球","小宠异宠","新能源车","校园学习","仿妆cos","综合","美食记录","手机游戏","娱乐杂谈","美食测评","AI影像","鬼畜剧场"],
+  median: [287552,338930,422252,1179718,358965,408915,500412,485266,114781,1028040,690850,698787,1036365,511662,784614,257311,690850,1163644,776222,1186263,1050462,1179718,1300644,1998513,525552,564696,620682,768442,1581438,700484,771903,417136,929990,994283,2111109,1315068,885006,1213867,1233724,2111109,2419401,2490560,1105386,1174877,678506,383110,342777,908130,556869,480418,497458,497820,298204,581317,427707,776216,381032,1152355,1111778,905056,1012225],
+  rate: [0.422,0.218,0.171,0.144,0.142,0.196,0.191,0.153,0.348,0.12,0.057,0.114,0.068,0.095,0.107,0.111,0.159,0.084,0.114,0.087,0.105,0.12,0.117,0.056,0.071,0.113,0.085,0.142,0.094,0.098,0.076,0.105,0.057,0.133,0.093,0.069,0.078,0.037,0.092,0.093,0.043,0.055,0.1,0.076,0.083,0.109,0.089,0.084,0.067,0.08,0.092,0.03,0.14,0.135,0.14,0.058,0.106,0.105,0.068,0.129,0.13] };
+const scatterData = scatter.parts.map((p, i) => ({ x: scatter.median[i]/1e6, y: scatter.rate[i], p }));
+const sMax = Math.max(...scatter.median);
+new Chart(document.getElementById('cScatter'), {
+  type: 'scatter',
+  data: { datasets: [{ data: scatterData, backgroundColor: COLORS.blue, pointRadius: 6, pointHoverRadius: 9 }] },
+  options: { plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: (c) => c.raw.p + '：播放中位' + (c.raw.x*1e6/1e4).toFixed(0) + '万，三连率' + c.raw.y } } },
+    scales: { x: { type: 'linear', title: { display: true, text: '播放量中位数（百万）' } },
+      y: { title: { display: true, text: '三连率' }, max: 0.45 } } }
+});
+
+// ===== 4.1 分区Top15 =====
+const partTop = { names: ['社会','桌游棋牌','汪星人','动物二创','三农','健身','亲子','家居房产','国产动画','搞笑','演奏','美妆护肤','小剧场','娱乐杂谈','美食测评'],
+  median: [2490560,2419401,2111109,1998513,1581438,1315068,1300644,1233724,1213867,1186263,1179718,1174877,1163644,1152355,1111778] };
+new Chart(document.getElementById('cPartTop'), {
+  type: 'bar',
+  data: { labels: partTop.names, datasets: [{ data: partTop.median.map(v=>v/1e4), backgroundColor: COLORS.pink }] },
+  options: { indexAxis: 'y', plugins: { legend: { display: false } },
+    scales: { x: { title: { display: true, text: '播放量中位数（万）' } } } }
+});
+
+// ===== 4.1 爆款率 =====
+new Chart(document.getElementById('cHitPart'), {
+  type: 'bar',
+  data: { labels: ['特摄','小剧场','搞笑','影视剪辑','出行','美食侦探','动物二创','三农','健身','亲子'],
+    datasets: [{ data: [35.3,20.5,19.1,18.6,16.7,15.6,28.6,9.1,10.0,10.0], backgroundColor: COLORS.teal }] },
+  options: { indexAxis: 'y', plugins: { legend: { display: false } },
+    scales: { x: { title: { display: true, text: '爆款率（%）' } } } }
+});
+
+// ===== 4.2 UP主集中度 =====
+const upCum = { x: [0.07,1.04,2.02,3.06,4.04,5.08,6.06,7.1,8.08,9.12,10.1,11.14,12.12,13.16,14.14,15.18,16.16,17.2,18.18,19.22,20.19,21.24,22.21,23.26,24.23,25.28,26.25,27.3,28.27,29.32,30.29,31.34,32.31,33.36,34.33,35.38,36.35,37.4,38.37,39.42,40.39,41.43,42.41,43.45,44.43,45.47,46.45,47.49,48.47,49.51,50.49,51.53,52.51,53.55,54.53,55.57,56.55,57.59,58.57,59.61,60.58,61.63,62.6,63.65,64.62,65.67,66.64,67.69,68.66,69.71,70.68,71.73,72.7,73.75,74.72,75.77,76.74,77.79,78.76,79.81,80.78,81.82,82.8,83.84,84.82,85.86,86.84,87.88,88.86,89.9,90.88,91.92,92.9,93.94,94.92,95.96,96.94,97.98,98.96,100],
+  y: [0.013,0.121,0.178,0.229,0.27,0.309,0.342,0.374,0.402,0.429,0.453,0.477,0.499,0.521,0.54,0.56,0.578,0.596,0.612,0.628,0.643,0.658,0.671,0.684,0.696,0.709,0.72,0.732,0.742,0.753,0.762,0.772,0.781,0.79,0.799,0.807,0.815,0.822,0.829,0.836,0.843,0.85,0.856,0.862,0.867,0.873,0.878,0.884,0.889,0.894,0.899,0.903,0.907,0.912,0.916,0.92,0.923,0.927,0.931,0.934,0.937,0.94,0.943,0.946,0.949,0.952,0.955,0.957,0.96,0.962,0.964,0.967,0.969,0.971,0.973,0.975,0.977,0.979,0.98,0.982,0.983,0.985,0.986,0.988,0.989,0.99,0.991,0.992,0.993,0.994,0.995,0.996,0.997,0.997,0.998,0.999,0.999,0.999,1.0,1.0] };
+new Chart(document.getElementById('cUpCum'), {
+  type: 'line',
+  data: { labels: upCum.x, datasets: [{ data: upCum.y, borderColor: '#7c2d12', backgroundColor: 'rgba(124,45,18,0.08)', fill: true, pointRadius: 0, borderWidth: 2 }] },
+  options: { plugins: { legend: { display: false } },
+    scales: { x: { title: { display: true, text: 'UP主占比（%，按播放从高到低）' } }, y: { title: { display: true, text: '累计播放占比' }, min: 0, max: 1 } } }
+});
+
+// ===== 4.3 星期 =====
+const week = { names: ['周一','周二','周三','周四','周五','周六','周日'], median: [2543298,2549060,1983914,1341062,774364,359243,153256], count: [73,71,140,278,496,678,186] };
+new Chart(document.getElementById('cWeek'), {
+  data: { labels: week.names, datasets: [
+    { type: 'bar', label: '播放量中位数（万）', data: week.median.map(v=>v/1e4), backgroundColor: COLORS.blue, yAxisID: 'y' },
+    { type: 'line', label: '视频数', data: week.count, borderColor: COLORS.orange, backgroundColor: COLORS.orange, yAxisID: 'y2', pointRadius: 4 }] },
+  options: { scales: { y: { title: { display: true, text: '播放量中位数（万）' } }, y2: { position: 'right', title: { display: true, text: '视频数' }, grid: { display: false } } } }
+});
+
+// ===== 4.4 时长 =====
+new Chart(document.getElementById('cTime'), {
+  data: { labels: ['0-1分钟','1-5分钟','5-15分钟','15分钟+'], datasets: [
+    { type: 'bar', label: '播放中位数（万）', data: [1286915,679749,567020,493686].map(v=>v/1e4), backgroundColor: COLORS.pink, yAxisID: 'y' },
+    { type: 'line', label: '三连率', data: [0.126,0.120,0.093,0.099], borderColor: COLORS.purple, yAxisID: 'y2', pointRadius: 5 }] },
+  options: { scales: { y: { title: { display: true, text: '播放中位数（万）' } }, y2: { position: 'right', title: { display: true, text: '三连率' }, grid: { display: false } } } }
+});
+
+// ===== 5.1 热力图 =====
+(function(){
+  const names = ['播放量','点赞数','评论数','弹幕数','收藏数','投币数','分享数'];
+  const m = [[1.0,0.83,0.54,0.37,0.66,0.30,0.53],[0.83,1.0,0.57,0.30,0.76,0.42,0.60],[0.54,0.57,1.0,0.62,0.44,0.46,0.70],[0.37,0.30,0.62,1.0,0.33,0.52,0.39],[0.66,0.76,0.44,0.33,1.0,0.56,0.61],[0.30,0.42,0.46,0.52,0.56,1.0,0.48],[0.53,0.60,0.70,0.39,0.61,0.48,1.0]];
+  const box = document.getElementById('heatmap');
+  let html = '<div class="heat"><div class="heat-row"><div class="heat-lbl"></div>' + names.map(n=>'<div style="width:40px;text-align:center;font-size:12px;color:#6b7280;">'+n+'</div>').join('') + '</div>';
+  m.forEach((row, i) => {
+    html += '<div class="heat-row"><div class="heat-lbl">'+names[i]+'</div>' + row.map(v=>{
+      let r,g,b; const a = Math.abs(v);
+      if (v > 0) { r = 251-Math.round(a*80); g = 114+Math.round(a*40); b = 153; }
+      else { r = 0; g = 120; b = 214; }
+      const bg = v > 0 ? 'rgba(251,114,153,'+(0.25+Math.round(a*70)/100)+')' : 'rgba(0,161,214,'+(0.2+Math.round(Math.abs(v)*60)/100)+')';
+      return '<div class="heat-cell" style="background:'+bg+';color:'+(Math.abs(v)>0.5?'#fff':'#374151')+';">'+v.toFixed(2)+'</div>';
+    }).join('') + '</div>';
+  });
+  box.innerHTML = html + '</div>';
+})();
+
+// ===== 6 时长对比 + 弹幕密度 =====
+new Chart(document.getElementById('cTimeCmp'), {
+  type: 'bar',
+  data: { labels: ['0-1分钟','1-5分钟','5-15分钟','15分钟+'], datasets: [
+    { label: '爆款组', data: [19.2,43.5,20.7,16.6], backgroundColor: COLORS.pink },
+    { label: '普通组', data: [9.1,41.6,28.2,21.1], backgroundColor: '#cbd5e1' }] },
+  options: { scales: { y: { title: { display: true, text: '占比（%）' } } } }
+});
+
+new Chart(document.getElementById('cDan'), {
+  type: 'bar',
+  data: { labels: ['爆款组','普通组'], datasets: [{ data: [41.65,9.91], backgroundColor: [COLORS.pink, '#cbd5e1'] }] },
+  options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c)=>'弹幕密度 '+c.raw } } },
+    scales: { x: { title: { display: true, text: '弹幕密度（弹幕/秒）' } } } }
+});
+
+// ===== 7 逻辑回归权重 =====
+const modelFeats = ['评论率','点赞率','币赞比','弹幕率','分享率','三连率','高爆款分区','收藏率','周一到周四','投币率','弹幕密度'];
+const modelCoef = [-2.872,-1.540,-0.967,-0.778,-0.443,-0.409,0.264,0.550,0.876,1.408,1.713];
+new Chart(document.getElementById('cModel'), {
+  type: 'bar',
+  data: { labels: modelFeats, datasets: [{ data: modelCoef, backgroundColor: modelCoef.map(v=>v>=0?COLORS.pink:'#9ca3af') }] },
+  options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c)=>'权重 '+c.raw } } },
+    scales: { x: { title: { display: true, text: '逻辑回归系数' } } } }
+});
+</script>
+</body>
+</html>
