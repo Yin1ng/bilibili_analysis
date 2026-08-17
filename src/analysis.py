@@ -66,10 +66,13 @@ def clean_and_feature(df):
     df['币赞比'] = df['投币数'] / df['点赞数']
     df['弹幕密度'] = df['弹幕数'] / df['时长秒']
 
-    # 播放分层
-    q30 = df['播放量'].quantile(0.30)
-    q90 = df['播放量'].quantile(0.90)
-    q99 = df['播放量'].quantile(0.99)
+    # 日均播放量：消除发布天数差异（老视频累积播放更多，不公平）
+    df['日均播放'] = df['播放量'] / df['发布天数']
+
+    # 播放分层（按日均播放量分位，避免偏袒老视频）
+    q30 = df['日均播放'].quantile(0.30)
+    q90 = df['日均播放'].quantile(0.90)
+    q99 = df['日均播放'].quantile(0.99)
 
     def level(p):
         if p >= q99:
@@ -80,7 +83,7 @@ def clean_and_feature(df):
             return '腰部普通'
         return '尾部低播放'
 
-    df['播放分层'] = df['播放量'].apply(level)
+    df['播放分层'] = df['日均播放'].apply(level)
     df['是否爆款'] = df['播放分层'].isin(['头部爆款', '超级爆款']).astype(int)
 
     df.to_csv(DATA_DIR + 'b站数据_清洗后.csv', index=False, encoding='utf-8-sig')
