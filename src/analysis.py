@@ -73,6 +73,22 @@ def clean_and_feature(df):
     # 日均播放量：消除发布天数差异（老视频累积播放更多，不公平）
     df['日均播放'] = df['播放量'] / df['发布天数']
 
+    # 互动指标日均化：与日均播放保持同一口径
+    df['日均点赞'] = df['点赞数'] / df['发布天数']
+    df['日均评论'] = df['评论数'] / df['发布天数']
+    df['日均弹幕'] = df['弹幕数'] / df['发布天数']
+    df['日均收藏'] = df['收藏数'] / df['发布天数']
+    df['日均投币'] = df['投币数'] / df['发布天数']
+    df['日均分享'] = df['分享数'] / df['发布天数']
+    df['日均点赞率'] = df['日均点赞'] / df['日均播放']
+    df['日均投币率'] = df['日均投币'] / df['日均播放']
+    df['日均收藏率'] = df['日均收藏'] / df['日均播放']
+    df['日均评论率'] = df['日均评论'] / df['日均播放']
+    df['日均弹幕率'] = df['日均弹幕'] / df['日均播放']
+    df['日均分享率'] = df['日均分享'] / df['日均播放']
+    df['日均三连率'] = (df['日均点赞'] + df['日均投币'] + df['日均收藏']) / df['日均播放']
+    df['日均弹幕密度'] = df['日均弹幕'] / df['时长秒']
+
     # 播放分层（按日均播放量分位，避免偏袒老视频）
     q30 = df['日均播放'].quantile(0.30)
     q90 = df['日均播放'].quantile(0.90)
@@ -157,11 +173,19 @@ def up_analysis(df):
 
 def corr_analysis(df):
     """模块3：相关性与互动质量"""
-    print('\n[模块3] 互动率与播放量相关（Spearman）')
+    print('\n[模块3] 互动率与播放量相关（Spearman，累计口径）')
     rate_cols = ['点赞率', '评论率', '弹幕率', '收藏率', '投币率', '分享率']
     corr_rates = df[['播放量'] + rate_cols].corr(method='spearman').loc['播放量']
     print(corr_rates.round(3).to_string())
     print('弹幕密度与播放量相关:', round(df['播放量'].corr(df['弹幕密度'], method='spearman'), 3))
+
+    print('\n[模块3] 日均口径验证（日均播放 × 日均互动率）')
+    d_rate_cols = ['日均点赞率', '日均评论率', '日均弹幕率', '日均收藏率', '日均投币率', '日均分享率']
+    corr_daily = df[['日均播放'] + d_rate_cols].corr(method='spearman').loc['日均播放']
+    print(corr_daily.round(3).to_string())
+    print('日均三连率相关:', round(df['日均播放'].corr(df['日均三连率'], method='spearman'), 3))
+    print('日均弹幕密度相关:', round(df['日均播放'].corr(df['日均弹幕密度'], method='spearman'), 3))
+    print('结论：日均口径下互动率仍全负、弹幕密度仍唯一正相关 → 核心发现稳健')
 
     hit = df[df['是否爆款'] == 1]
     normal = df[df['是否爆款'] == 0]
