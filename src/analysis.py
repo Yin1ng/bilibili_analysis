@@ -50,10 +50,14 @@ def clean_and_feature(df):
     df = df[df['时长秒'] <= 36000]
     print('[2] 清洗完成:', before, '->', len(df), '条（剔除', before - len(df), '条）')
 
-    # 发布天数
-    df['发布天数'] = (df['数据日期'] - df['发布时间']).dt.days
-    df['发布天数异常'] = df['发布天数'] <= 0
-    df.loc[df['发布天数异常'], '发布天数'] = 1
+    # 发布天数（精确到小时）：数据日期 - 发布时间
+    df['发布小时'] = (df['数据日期'] - df['发布时间']).dt.total_seconds() / 3600
+    df['发布天数'] = df['发布小时'] / 24
+    # 剔除发布时间晚于采集日的异常样本
+    df = df[df['发布小时'] > 0]
+    # 剔除不满24小时的新视频：播放累积不足、日均播放被小分母高估、爆款标签不可靠
+    df = df[df['发布小时'] >= 24]
+    print('[2.5] 剔除不满24h后条数:', len(df))
 
     # 互动率
     df['点赞率'] = df['点赞数'] / df['播放量']
@@ -166,10 +170,11 @@ def corr_analysis(df):
 
 
 def model_analysis(df):
-    """阶段3：逻辑回归爆款预测"""
+    """阶段3：逻辑回归爆款预测（满1日数据训练/验证 + 新视频预测演示）"""
     from sklearn.model_selection import train_test_split
     from sklearn.linear_model import LogisticRegression
     from sklearn.preprocessing import StandardScaler
+    from sklearn.metrics import accuracy_score, classification_report
 
     feats = ['点赞率', '评论率', '弹幕率', '收藏率', '投币率', '分享率',
              '三连率', '币赞比', '弹幕密度']
@@ -191,6 +196,35 @@ def model_analysis(df):
     print('\n[建模] 逻辑回归特征权重（越大越促进爆款）')
     coef = pd.DataFrame({'特征': feats, '系数': model.coef_[0].round(3)})
     print(coef.sort_values('系数', ascending=False).to_string(index=False))
+    print('测试集准确率:', round(accuracy_score(y_test, model.predict(X_test)), 3))
+
+    # ============ 新视频预测演示 ============
+    # 用训练好的模型预测"不满24小时刚发布"的视频是否可能成为爆款
+    new_path = DATA_DIR + 'b站数据_新视频.csv'
+    if os.path.exists(new_path):
+        new_df = pd.read_csv(new_path, encoding='utf-8-sig')
+        new_df['发布小时'] = (pd.to_datetime(new_df['数据日期']) - pd.to_datetime(new_df['发布时间'])).dt.total_seconds() / 3600
+        new_df = new_df[new_df['发布小时'] > 0]
+        # 计算新视频的互动特征
+        new_df['点赞率'] = new_df['点赞数'] / new_df['播放量']
+        new_df['投币率'] = new_df['投币数'] / new_df['播放量']
+        new_df['收藏率'] = new_df['收藏数'] / new_df['播放量']
+        new_df['评论率'] = new_df['评论数'] / new_df['播放量']
+        new_df['弹幕率'] = new_df['弹幕数'] / new_df['播放量']
+        new_df['分享率'] = new_df['分享数'] / new_df['播放量']
+        new_df['三连率'] = (new_df['点赞数'] + new_df['投币数'] + new_df['收藏数']) / new_df['播放量']
+        new_df['币赞比'] = new_df['投币数'] / new_df['点赞数']
+        new_df['弹幕密度'] = new_df['弹幕数'] / new_df['时长秒']
+        new_df['高爆款分区'] = new_df['分区'].isin(top_parts).astype(int)
+
+        new_clean = new_df.replace([np.inf, -np.inf], np.nan).dropna(subset=feats)
+        if len(new_clean) > 0:
+            X_new = scaler.transform(new_clean[feats])
+            new_clean['预测概率'] = model.predict_proba(X_new)[:, 1]
+            top_new = new_clean.nlargest(10, '预测概率')
+            print('\n[建模] 新视频（不满24h）爆款潜力预测 Top10:')
+            print(top_new[['标题', 'UP主', '分区', '播放量', '预测概率']].round(3).to_string())
+            print('注：新视频预测为方向参考，其爆款标签不可靠（播放未充分累积），未做准确率评估')
     return model
 
 
